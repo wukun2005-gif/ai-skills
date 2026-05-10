@@ -1,99 +1,80 @@
 # AI Skills
 
-> 一次编写，处处同步。一套可复用的 AI 编码助手 Skills（Slash Commands），支持 **20+ 种工具**，包括 Claude Code、Cursor、VS Code Copilot、Cline、Windsurf、Kiro 等。
+> Every AI coding tool has its own skills format. You end up rewriting the same instructions for Claude Code, Cursor, Windsurf, Cline... every time you refine a workflow.
 >
-> Write once, sync everywhere. A collection of reusable skills for AI coding assistants — works across **20+ tools**.
+> This repo fixes that. Write once, sync everywhere. Works across **20+ tools**.
+
+每个 AI 编码工具都有自己的 skills/rules 系统，互不兼容。你不得不为每个工具重复编写相同的指令。**这个仓库解决了这个问题。**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/wukun2005-gif/ai-skills?style=social)](https://github.com/wukun2005-gif/ai-skills/stargazers)
 
+<!-- TODO: Replace with actual demo GIF -->
+![demo](./demo.gif)
+
 ---
 
-每个 AI 编码工具都有自己的 "skills" 或 "rules" 系统，但互不兼容。你不得不为每个工具重复编写相同的指令。
+## How it works
 
-**这个仓库解决了这个问题。** 把 skill 写在 `~/.ai-skills/`，然后运行 `/share-skills`，自动检测并同步到你机器上所有的 AI 工具——无需手动配置，无需操心格式差异。
+Write your skill once in `~/.ai-skills/`, run `/share-skills`, and it auto-detects and syncs to every AI tool on your machine — no manual config, no format juggling.
 
-Every AI coding tool has its own "skills" or "rules" system, but they're all incompatible. You end up rewriting the same instructions for each tool.
+```
+/share-skills              # detect all tools, sync everything
+/share-skills --add test   # sync just one skill
+/share-skills --list       # see what's available without syncing
+```
 
-**This repo solves that.** Write your skill once in `~/.ai-skills/`, run `/share-skills`, and it auto-detects and syncs to every AI tool on your machine — no manual config, no format juggling.
+Detection works by scanning for directory content patterns, not hardcoded paths — so new tools get picked up automatically.
 
 ## Quick Start
 
 ```bash
-# 克隆到 ~/.ai-skills/
 git clone https://github.com/wukun2005-gif/ai-skills.git ~/.ai-skills
-
-# 创建符号链接到 Claude Code
 ln -s ~/.ai-skills/* ~/.claude/skills/
-
-# 同步到本机所有其他 AI 工具
 /share-skills
 ```
 
-## Skills 列表
+## Skills
 
-| Skill | 触发词 | 说明 |
-|-------|--------|------|
-| [`dev-iterate`](dev-iterate/) | "开发" / "iterate" | 基于 PRD/Design Doc/Dev Plan 的迭代式开发，开发与测试交替进行，14 条自检，自动提交 |
-| [`test`](test/) | "测试" / "test" | 智能测试——分析变更范围，针对性运行测试，避免全量执行 |
-| [`commit`](commit/) | "提交" / "commit" | 分析变更、推断提交风格、commit & push |
-| [`backlog-update`](backlog-update/) | "提建议" / "suggest" | 从 UX/安全/性能/稳定性等维度分析项目，建议优先级排序的新功能 |
-| [`doc-consistency`](doc-consistency/) | "一致性检查" | 自动发现项目中所有 .md 文档，检查并修复文档间的一致性 |
-| [`review-iterate`](review-iterate/) | "review" / "审查" | 迭代式审查与修复文档，直到与参考文档完全一致 |
-| [`share-skills`](share-skills/) | "共享 skills" | 自动检测本机所有 AI 编码工具，一键同步 skills 到全部工具 |
-| [`resume-tailor`](resume-tailor/) | "生成简历" / "resume" | 根据 JD 基于真实简历素材生成定制简历 |
-| [`resume-html`](resume-html/) | "转html" / "resume html" | 将简历转为 ATS 友好的 HTML 格式，结合 JD 做克制的加粗高亮 |
+| Skill | Description |
+|-------|-------------|
+| `dev-iterate` | Iterative dev workflow: PRD → dev → test → commit, with 14 self-checks |
+| `test` | Smart test runner — analyzes changes, runs targeted tests, skips the rest |
+| `commit` | Infers commit style from git history, commits and pushes |
+| `backlog-update` | Analyzes your project and suggests prioritized features |
+| `doc-consistency` | Finds all .md files and checks cross-document consistency |
+| `review-iterate` | Iterative doc review against a reference document |
+| `share-skills` | The sync engine — detect tools, sync skills |
+| `resume-tailor` | Generates tailored resumes from job descriptions |
+| `resume-html` | Converts resume to ATS-friendly HTML with keyword highlighting |
 
-## share-skills 工作原理
+## Supported tools
 
-核心卖点：**零配置跨工具同步**。
+Claude Code, Cursor, CodeBuddy, Windsurf, TRAE, Antigravity, Kiro, Qoder, Cline, VS Code Copilot, Amazon Q, Codex, Hermes, and more. New tools are detected automatically.
 
-1. **自动发现** — 扫描系统上的 AI 编码工具，通过检测目录内容特征识别（不硬编码路径）
-2. **自动注册** — 新发现的工具自动写入注册表
-3. **智能分发** — 每个工具获得正确的格式：符号链接（Claude Code、Cursor、Kiro）、文件复制（VS Code、Windsurf）、合并写入（Cline）、或跳过（TRAE 通过插件读取）
+## Add your own skill
 
-```
-/share-skills              # 全量同步到所有已发现的工具
-/share-skills --list       # 仅列出可共享的 skills（不同步）
-/share-skills --add <skill>  # 只同步单个 skill
+```bash
+mkdir ~/.ai-skills/my-skill/
 ```
 
-已支持工具：Claude Code、Cursor、CodeBuddy、Windsurf、TRAE、Antigravity、Kiro、Qoder、Cline、VS Code Copilot、Amazon Q、Codex、Hermes 等。新工具安装后自动识别，重新运行 `--sync` 即可。
+Drop a `SKILL.md` in there:
 
-## 目录结构
+```markdown
+---
+name: my-skill
+description: What it does
+when_to_use: trigger words
+---
 
-```
-~/.ai-skills/
-├── dev-iterate/         # 迭代式开发
-│   └── SKILL.md
-├── test/                # 智能测试
-│   └── SKILL.md
-├── commit/              # Git 提交
-│   └── SKILL.md
-├── share-skills/        # 跨工具同步引擎
-│   ├── SKILL.md
-│   └── registry.json    # 工具注册表（自动维护）
-├── ...
-└── LICENSE
+Your instructions here...
 ```
 
-## 添加自定义 Skill
-
-1. 创建目录：`~/.ai-skills/my-skill/`
-2. 添加 `SKILL.md`，包含 frontmatter：
-   ```markdown
-   ---
-   name: my-skill
-   description: 功能描述
-   when_to_use: 触发词
-   ---
-   你的 skill 指令内容...
-   ```
-3. 运行 `/share-skills` 同步到所有工具
+Run `/share-skills` and it goes everywhere.
 
 ## Contributing
 
-PRs welcome! 如果你有跨项目通用的 skill，欢迎提交。
+PRs welcome! If you have cross-project workflows worth sharing, submit them.
 
 ## License
 
