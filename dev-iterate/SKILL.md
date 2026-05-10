@@ -3,7 +3,7 @@ name: dev-iterate
 description: 基于 PRD、Design Doc 和 Dev Plan 的迭代式产品开发。对 backlog 中的每个 feature，Task A（开发）和 Task B（测试）交替进行，直到该功能测试全过、14 条自检通过，然后 commit & push，进入下一个 feature。内嵌 P0-P10 开发工作原则。
 when_to_use: 用户说"开发"、"迭代开发"、"dev-iterate"、"开始开发"、"继续开发"、"做功能"
 ---
-
+ 
 ## 迭代式产品开发
 
 ### 0. 参数解析
