@@ -1,0 +1,146 @@
+{
+  "tools": {
+    "cursor": {
+      "detect_path": "~/.cursor/",
+      "skills_dir": "~/.cursor/skills-cursor/",
+      "format": "agent-skills",
+      "method": "symlink"
+    },
+    "codebuddy": {
+      "detect_path": "~/.codebuddy/",
+      "skills_dir": "~/.codebuddy/skills-marketplace/skills/",
+      "format": "agent-skills",
+      "method": "symlink"
+    },
+    "trae": {
+      "detect_path": "~/.trae/",
+      "skills_dir": null,
+      "format": "claude-code-plugin",
+      "method": "none",
+      "note": "TRAE 通过 Claude Code 插件读取 ~/.claude/skills/，无需操作"
+    },
+    "windsurf": {
+      "detect_path": "~/.codeium/windsurf/",
+      "skills_dir": "~/.codeium/windsurf/windsurf/workflows/",
+      "format": "markdown-workflow",
+      "method": "copy",
+      "frontmatter": {
+        "auto_execution_mode": 0
+      }
+    },
+    "antigravity": {
+      "detect_path": "~/.gemini/antigravity/",
+      "skills_dir": "~/.gemini/antigravity/global_workflows/",
+      "format": "markdown-workflow",
+      "method": "copy",
+      "limits": {
+        "description_max_chars": 250,
+        "body_max_chars": 12000
+      }
+    },
+    "kiro": {
+      "detect_path": "~/.kiro/",
+      "skills_dir": "~/.kiro/skills/",
+      "format": "agent-skills",
+      "method": "symlink"
+    },
+    "qoder": {
+      "detect_path": "~/.qoder/",
+      "skills_dir": "~/.qoder/skills/",
+      "format": "agent-skills",
+      "method": "symlink"
+    },
+    "cline": {
+      "detect_path": "~/.cline/",
+      "skills_dir": "~/.clinerules",
+      "format": "markdown-merge",
+      "method": "merge"
+    },
+    "vscode": {
+      "detect_path": "/Applications/Visual Studio Code.app",
+      "skills_dir": "~/.vscode/copilot/skills/",
+      "format": "agent-skills",
+      "method": "copy"
+    },
+    "claude": {
+      "detect_path": "~/.claude/",
+      "skills_dir": "~/.claude/skills/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "Claude Code 自身的 skills 目录"
+    },
+    "trae-cn": {
+      "detect_path": "~/.trae-cn/",
+      "skills_dir": "~/.trae-cn/extensions/",
+      "format": "agent-skills",
+      "method": "copy",
+      "note": "TRAE 国内版"
+    },
+    "codebuddycn": {
+      "detect_path": "~/.codebuddycn/",
+      "skills_dir": "~/.codebuddycn/extensions/",
+      "format": "agent-skills",
+      "method": "copy",
+      "note": "CodeBuddy 国内版"
+    },
+    "codex": {
+      "detect_path": "~/.codex/",
+      "skills_dir": "~/.codex/skills/",
+      "plugins_dir": "~/.codex/plugins/",
+      "rules_dir": "~/.codex/rules/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "OpenAI Codex CLI"
+    },
+    "hermes": {
+      "detect_path": "~/.hermes/",
+      "skills_dir": "~/.hermes/hermes-agent/skills/",
+      "plugins_dir": "~/.hermes/hermes-agent/plugins/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "Hermes Agent"
+    },
+    "antigravity-local": {
+      "detect_path": "~/.antigravity/",
+      "skills_dir": "~/.antigravity/extensions/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "Antigravity 本地版（区别于 Gemini Antigravity）"
+    },
+    "windsurf-local": {
+      "detect_path": "~/.windsurf/",
+      "skills_dir": "~/.windsurf/extensions/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "Windsurf 独立扩展目录（区别于 ~/.codeium/windsurf/）"
+    },
+    "cc-switch": {
+      "detect_path": "~/.cc-switch/",
+      "skills_dir": "~/.cc-switch/skills/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "Claude Code Switch"
+    },
+    "codeartsdoer": {
+      "detect_path": "~/.codeartsdoer/",
+      "skills_dir": "~/.codeartsdoer/cache/system/skills/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "CodeArts Doer"
+    },
+    "vscode-codebot-plugin": {
+      "detect_path": "~/.vscode/extensions/huaweicloud.vscode-codebot-26.3.6/",
+      "skills_dir": "~/.vscode/extensions/huaweicloud.vscode-codebot-26.3.6/skills/",
+      "format": "agent-skills",
+      "method": "copy",
+      "note": "VS Code 内 Huawei Cloud CodeBot 插件的 skills"
+    },
+    "amazonq": {
+      "detect_path": "~/.aws/",
+      "skills_dir": "~/.aws/amazonq/agents/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "Amazon Q Developer agents"
+    }
+  }
+}

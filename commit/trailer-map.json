@@ -1,0 +1,50 @@
+{
+  "tools": {
+    "claude-code": {
+      "name": "Claude",
+      "email": "noreply@anthropic.com"
+    },
+    "cursor": {
+      "name": "Cursor",
+      "email": "cursoragent@cursor.com"
+    },
+    "cline": {
+      "name": "Cline",
+      "email": "noreply@cline.ai"
+    },
+    "copilot": {
+      "name": "Copilot",
+      "email": "223556219+Copilot@users.noreply.github.com"
+    },
+    "windsurf": {
+      "name": "Windsurf Cascade",
+      "email": "cascade@windsurf.ai"
+    },
+    "trae": {
+      "name": "Trae AI",
+      "email": "trae@bytedance.com"
+    },
+    "codebuddy": {
+      "name": "CodeBuddy",
+      "email": "noreply@codebuddy.ai"
+    }
+  },
+  "models": {
+    "mimo-v2.5-pro": {
+      "name": "mimo-v2.5-pro",
+      "email": "support-mimo@xiaomi.com"
+    },
+    "claude-opus-4-7": {
+      "name": "Claude Opus 4.7",
+      "email": "noreply@anthropic.com"
+    },
+    "claude-sonnet-4-6": {
+      "name": "Claude Sonnet 4.6",
+      "email": "noreply@anthropic.com"
+    },
+    "claude-haiku-4-5": {
+      "name": "Claude Haiku 4.5",
+      "email": "noreply@anthropic.com"
+    }
+  }
+}
