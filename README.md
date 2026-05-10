@@ -16,7 +16,7 @@
 
 ## 安装
 
-Skills 默认放在 `~/.claude/skills/` 目录下供 Claude Code 使用。克隆本仓库后，可通过 `share-skills` 命令一键同步到所有已支持的工具：
+Skills 源文件存放在 `~/.ai-skills/` 目录下。Claude Code 通过 `~/.claude/skills/` 中的符号链接读取。克隆本仓库后，可通过 `share-skills` 命令一键同步到所有已支持的工具：
 
 ```
 /share-skills --sync
