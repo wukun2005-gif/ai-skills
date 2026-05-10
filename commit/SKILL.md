@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Git 提交并推送到当前分支，然后更新项目任务跟踪文件。分析变更、推断提交风格、起草提交信息、commit、push。
+description: Git 提交并推送到当前分支，然后更新项目任务跟踪文件。分析变更、推断提交风格、起草提交信息、commit、push。支持通过参数指定要提交的文件列表（`file1 file2 -- msg`）或排除列表（`--skip file -- msg`）。
 when_to_use: 用户说"提交"、"commit"、"提交并推送"
 allowed-tools:
   - Bash(git add *)
@@ -14,6 +14,40 @@ allowed-tools:
 ## 提交、推送、更新任务跟踪 流程
 
 按以下步骤执行：
+
+### 0. 解析参数
+
+如果 `$ARGUMENTS` 不为空，按以下规则解析出三个变量：
+
+**语法规则：**
+- `--skip <file>`：排除单个文件，可重复使用（如 `--skip a.js --skip b.js`）
+- `--` 之后的内容：提交信息（无论是否包含 `--skip`）
+- `--` 之前、非 `--skip` 及其参数的部分：显式文件列表
+- 若存在显式文件列表，则隐式排除所有其他变更文件
+
+**解析流程：**
+1. 如果参数中包含 `--`，`--` 之前为选项部分，之后为 `$COMMIT_MSG`
+2. 从选项部分提取所有 `--skip <file>` 对（每个 `--skip` 后跟恰好一个 token），存入 `$SKIP_FILES`
+3. 剩余 token 存入 `$INCLUDE_FILES`
+4. 如果参数中不含 `--`：
+   a. 先运行 `git status` 获取变更文件列表
+   b. 将 `$ARGUMENTS` 中的每个 token 与变更文件列表比对
+   c. 匹配变更文件的 token → `$INCLUDE_FILES`（支持精确匹配、文件名匹配、目录前缀匹配）
+   d. 不匹配任何变更文件的 token → 拼接为 `$COMMIT_MSG`（按原顺序，空格连接）
+   e. 如果所有 token 都不匹配变更文件 → 整个 `$ARGUMENTS` 作为 `$COMMIT_MSG`（与旧行为一致）
+
+**示例：**
+
+| 输入（变更文件含 `commit/SKILL.md`, `share-skills/SKILL.md`） | $INCLUDE_FILES | $SKIP_FILES | $COMMIT_MSG |
+|------|---------------|-------------|-------------|
+| `fix login bug` | _(空)_ | _(空)_ | `fix login bug` |
+| `commit/SKILL.md share-skills/SKILL.md` | `commit/SKILL.md share-skills/SKILL.md` | _(空)_ | _(空，自动起草)_ |
+| `commit/SKILL.md update commit skill` | `commit/SKILL.md` | _(空)_ | `update commit skill` |
+| `src/a.js src/b.js -- fix bug` | `src/a.js src/b.js` | _(空)_ | `fix bug` |
+| `--skip .env --skip node_modules -- update deps` | _(空)_ | `.env node_modules` | `update deps` |
+| `src/a.js --skip test/ -- add feature` | `src/a.js` | `test/` | `add feature` |
+
+后续步骤中使用这三个变量。
 
 ### 1. 分析变更
 
@@ -33,7 +67,7 @@ allowed-tools:
 
 ### 3. 起草提交信息
 
-- 如果 `$ARGUMENTS` 不为空，用其作为提交信息的核心内容
+- 如果 `$COMMIT_MSG` 不为空，用其作为提交信息的核心内容
 - 否则根据变更内容和项目历史风格起草
 - 提交信息末尾动态生成 `Co-Authored-By` trailer（见下方检测规则）
 
@@ -50,6 +84,7 @@ allowed-tools:
 | windsurf | Windsurf Cascade | cascade@windsurf.ai |
 | trae | Trae AI | trae@bytedance.com |
 | codebuddy | CodeBuddy | noreply@codebuddy.ai |
+| antigravity | Antigravity | noreply@google.com |
 
 **模型：**
 
@@ -59,6 +94,7 @@ allowed-tools:
 | claude-opus-4-7 | Claude Opus 4.7 | noreply@anthropic.com |
 | claude-sonnet-4-6 | Claude Sonnet 4.6 | noreply@anthropic.com |
 | claude-haiku-4-5 | Claude Haiku 4.5 | noreply@anthropic.com |
+| gemini-3-flash | Gemini 3 Flash | noreply@google.com |
 
 #### 检测规则
 
@@ -86,19 +122,26 @@ allowed-tools:
 
 ### 4. 确认待提交文件、提交信息，然后提交并推送
 
-**4a. 展示待提交文件列表并允许排除**
+**4a. 确定待提交文件列表**
 
-从 `git status` 中整理出所有变更文件（含新增、修改、删除），以编号列表形式展示给用户：
+根据解析结果确定待提交文件：
+
+- **显式文件列表**（`$INCLUDE_FILES` 非空）：只使用 `$INCLUDE_FILES` 中列出的文件。逐一验证每个文件确实在 `git status` 的变更列表中，如果不存在则警告用户。
+- **排除列表**（`$SKIP_FILES` 非空，`$INCLUDE_FILES` 为空）：从所有变更文件中移除 `$SKIP_FILES` 匹配的文件（支持精确文件名和目录前缀匹配）。
+- **两者均为空**：使用所有变更文件，并交互式询问用户排除（见下方交互流程）。
+
+整理最终待提交文件列表，以编号列表形式展示给用户：
 
 ```
 待提交文件列表：
   1. src/foo.js        (modified)
   2. src/bar.ts        (new file)
   3. test/baz.test.mjs (modified)
-  4. .env.local        (modified)
 ```
 
-然后询问用户：「是否有不需要提交的文件？请告诉我编号或文件名，没有请回复"无"。」
+**交互式排除**（仅当 `$INCLUDE_FILES` 和 `$SKIP_FILES` 均为空时）：
+
+询问用户：「是否有不需要提交的文件？请告诉我编号或文件名，没有请回复"无"。」
 
 如果用户指定了排除文件，从列表中移除对应文件，重新展示最终列表并再次确认。
 
@@ -128,5 +171,5 @@ git push origin main
 
 检查项目中是否存在任务跟踪文件（如 `backlog.md`、`TODO.md`、`CHANGELOG.md` 等）：
 - 如果存在且有变更，检查是否需要更新对应条目的状态
-- 如果 `$ARGUMENTS` 中提到了某个任务编号，同步将该项标记为已完成
+- 如果 `$COMMIT_MSG` 中提到了某个任务编号，同步将该项标记为已完成
 - 任务跟踪文件的更新作为独立 commit 提交并推送

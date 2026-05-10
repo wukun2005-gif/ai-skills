@@ -133,6 +133,8 @@ description: <从 SKILL.md frontmatter 的 description 字段提取>
 <SKILL.md 的正文内容>
 ```
 
+**⚠️ 极度重要（防偷懒指令）：** 当你在生成这个 .md 文件时，必须完整原样地粘贴原 SKILL.md 的全部正文内容（即第二个 `---` 之后的所有文本），绝对不可以使用占位符或省略正文，否则会导致目标工具无法执行该 skill！
+
 文件名：`<skill-name>.md`
 
 注意：如果注册表中有 `limits`（如 Antigravity 的 description 250 字符、body 12000 字符），需按限制截断。description 和正文中不能包含 `---`（会被误解析为 frontmatter 分隔符）。
@@ -154,6 +156,8 @@ description: <从 SKILL.md frontmatter 的 description 字段提取>
 
 ...
 ```
+
+**⚠️ 极度重要（防偷懒指令）：** 当你在生成这个合并文件时，必须完整原样地粘贴每个 SKILL.md 的全部正文内容，绝对不可以使用占位符或省略正文，否则会导致目标工具无法执行该 skill！
 
 重建整个文件，不追加（避免重复内容）。
 
