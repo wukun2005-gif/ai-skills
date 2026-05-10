@@ -16,7 +16,7 @@
 
 ## 安装
 
-Skills 源文件存放在 `~/.ai-skills/` 目录下。Claude Code 通过 `~/.claude/skills/` 中的符号链接读取。
+Skills 源文件存放在 `~/.ai-skills/` 目录下。
 
 ### share-skills：一键同步到所有 AI 工具
 
