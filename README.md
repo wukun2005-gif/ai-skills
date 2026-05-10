@@ -45,8 +45,6 @@ ln -s ~/.ai-skills/* ~/.claude/skills/
 | `doc-consistency` | Finds all .md files and checks cross-document consistency |
 | `review-iterate` | Iterative doc review against a reference document |
 | `share-skills` | The sync engine — detect tools, sync skills |
-| `resume-tailor` | Generates tailored resumes from job descriptions |
-| `resume-html` | Converts resume to ATS-friendly HTML with keyword highlighting |
 
 ## Supported tools
 
