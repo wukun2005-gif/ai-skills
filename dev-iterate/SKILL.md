@@ -23,6 +23,8 @@ when_to_use: 用户说"开发"、"迭代开发"、"dev-iterate"、"开始开发"
    - **不指定** → 只处理标记为未完成（`[ ]`）的 feature
 4. 按编号顺序依次处理，每个 feature 独立完成后再进入下一个。
 
+> **硬规则：无论代码是否已存在、是否已提交，Task B（测试验证）和 §5（自检/提交/baglog 更新）都不得跳过。** backlog 中标记为 `[ ]` 的 feature，必须走完 Task A → Task B → §5 全流程（或根据 §1.1 状态验证从合适的阶段开始，但 Task B 和 §5 必须完整执行）。
+
 
 ### 开发工作原则（内嵌，贯穿全流程）
 
@@ -116,6 +118,26 @@ when_to_use: 用户说"开发"、"迭代开发"、"dev-iterate"、"开始开发"
 
 确保充分理解：这个 feature 要做什么、改动哪些文件、怎么验证、和其他 feature 有没有依赖。
 
+#### 1.1 Feature 状态验证
+
+进入 Task A 前，验证该 feature 的实际状态：
+
+1. `git log --oneline` 检查是否有相关 commit
+2. 检查源码文件是否已包含该 feature 的实现
+
+根据验证结果决定起始阶段：
+- **代码不存在** → 从 Task A（开发）开始
+- **代码已存在但未提交/未测试** → 从 Task B（测试）开始，跳过 Task A
+- **代码已存在且已提交，但 backlog 标记为 `[ ]`** → 从 Task B 开始，补走 §5 全流程
+
+**无论哪种情况，Task B 和 §5 都必须完整执行，不得跳过。**
+
+**强制输出**：
+```
+§1.1 Feature "<name>" 状态验证 — [代码不存在→从 Task A | 代码存在未测试→从 Task B | 代码已提交→补走 §5]
+```
+未输出此声明而直接进入 Task A 或 Task B，视为流程违规。
+
 
 ### 2. Task A：设计与开发
 
@@ -151,7 +173,12 @@ when_to_use: 用户说"开发"、"迭代开发"、"dev-iterate"、"开始开发"
 1. 确认所有改动文件已保存。
 2. 清理所有临时文件（P6）。
 3. 向 Task B 交付：列出本次改动的文件清单、改动摘要、以及 backlog 中的验证方式。
-4. 进入 Task B。**不得跳过 Task B**，Task A 内的自测（mock 测试、inline 验证）不替代 Task B 的独立测试。
+4. **必须输出以下声明后方可进入 Task B**：
+   ```
+   ✅ Task A 完成 — 进入 Task B 测试验证
+   ```
+   **此时禁止读取下一个 feature 的任何文件或开始任何分析。** 未输出此声明而直接进入下一个 feature，视为流程违规。
+5. 进入 Task B。**不得跳过 Task B**，Task A 内的自测（mock 测试、inline 验证）不替代 Task B 的独立测试。
 
 
 ### 3. Task B：测试设计与执行
@@ -258,7 +285,11 @@ when_to_use: 用户说"开发"、"迭代开发"、"dev-iterate"、"开始开发"
 
 #### 3.4 交付
 
-- **全部通过**：通知 Task A 测试全过，进入自检和提交流程。
+- **全部通过**：**必须输出以下声明后方可进入 §5**：
+  ```
+  ✅ Task B 全部通过 — 进入 §5 自检与提交流程
+  ```
+  未输出此声明而直接进入 §5 或下一个 feature，视为流程违规。
 - **存在失败**：需先自行调查失败原因，再决定处理方式：
   - **功能性失败**（代码逻辑错误）→ 将测试报告交给 Task A 修复，循环继续
   - **环境依赖失败**（VPN/网络/外部服务不可用）→ 必须自行调查确认（如 `curl` 验证目标地址可达性、DNS 解析、端口连通性），附上调查证据后暂停，请用户介入修复环境。判定为环境问题前需排除所有代码层面的可能
@@ -288,6 +319,13 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
 - **每一轮 Task A**：收到 Task B 的失败报告后，先完整阅读报告，理解每个失败用例，然后修复。修复后自测一遍，再交给 Task B。
 - **每一轮 Task B**：从零独立审查，不因为上一轮某用例通过就跳过，仍要完整执行所有测试用例。
 - **同一问题反复失败**：如果同一个用例连续 3 轮失败，暂停循环，请用户确认是否需求本身有问题。
+- **循环退出后必须进入 §5**：测试全部通过后，必须输出以下声明后方可进入 §5：
+  ```
+  ✅ Task B 全部通过 — 进入 §5 自检与提交流程
+  ```
+  未输出此声明而直接进入下一个 feature，视为流程违规。§5 的每一步（自检→文档同步→pre-commit checklist→原则自检→commit & push→更新 backlog→gate check）都是强制的。
+- **§5 必须独立完成**：每个 feature 的 §5 必须独立执行——独立 commit、独立 push、独立更新 backlog。禁止合并多个 feature 的 §5 到一次执行，禁止多个 feature 共用一个 commit。
+- **禁止跨 feature 并行开发**：Feature N 的 §5.x Gate Check 通过之前，禁止开始 Feature N+1 的任何步骤（包括 Task A 的代码阅读、需求分析）。违反此规则视为流程违规。
 
 
 ### 5. 自检与提交
@@ -373,7 +411,7 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
 
 #### 5.5 Commit & Push（自动执行）
 
-§5.1 ~ §5.4 全部通过后，自动执行 commit & push，无需用户确认（非正常停止条件触发时除外）：
+§5.1 ~ §5.4 全部通过后，自动执行 commit & push，无需用户确认（非正常停止条件触发时除外）。**每个 feature 独立 commit，禁止合并多个 feature 的改动到一个 commit。**
 1. `git status` + `git diff` 分析变更
 2. 起草提交信息（遵循项目历史风格），末尾按 commit skill 的 trailer 对照表和检测规则生成 `Co-Authored-By` trailer（读取 skill 目录 `trailer-map.json`（`~/.ai-skills/commit/`）；若工具或模型未命中，WebSearch 查邮箱后更新 map 和所有 SKILL.md 副本）
 3. `git add` 相关文件（仅与当前功能相关的文件）
@@ -402,8 +440,11 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
 §5.6 完成后，执行 gate check 验证所有步骤均已正确完成：
 
 1. **确认输出完整性**：检查 §5.1 ~ §5.6 的 6 行确认输出是否全部存在
-2. **验证 commit & push**：执行 `git log -1 --oneline` 确认最新 commit 与 §5.5 输出的 hash 一致；执行 `git status` 确认不含 `ahead` 字样（push 已成功）
-3. **验证 backlog**：读取 backlog，确认该 feature 已标记 `[✅]`
+2. **验证 commit & push**：
+   - `git log -1 --oneline` 确认最新 commit 与 §5.5 输出的 hash 一致
+   - `git log --oneline` 检查本次迭代的 commit 数量是否等于已处理的 feature 数量（每个 feature 必须有独立 commit）
+   - `git status` 确认不含 `ahead` 字样（push 已成功）
+3. **验证 backlog**：读取 backlog 文件，确认该 feature 行包含 `[✅]` 标记。若 backlog 在 `.gitignore` 中，记录为"本地更新，未提交"，不视为失败
 
 全部通过后输出：
 ```
@@ -419,13 +460,13 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
 - 若还有未处理的 feature → 回到步骤 1，处理下一个 feature
 - 若所有 feature 已处理完毕 → 进入 §8 最终清理
 
-**前置 Gate Check（强制）**：进入 §1 之前，必须验证以下 3 个条件全部满足，任一不满足则禁止进入下一个 feature：
+**阻塞规则**：以下任一条件不满足时，**禁止进入下一个 feature 的任何步骤**（包括 Task A 的代码阅读、需求分析）：
 
-1. 上一个 feature 的 §5 Gate 输出存在（`✅ §5 Gate 通过`）
-2. `git log -1 --oneline` 确认最新 commit 存在且与 §5.5 记录的 hash 一致
-3. backlog 中上一个 feature 已标记 `[✅]`
+1. 上一个 feature 的 §5.1 ~ §5.6 的 6 行确认输出全部存在
+2. 上一个 feature 有独立的 commit（`git log -1 --oneline` 确认最新 commit 与 §5.5 记录的 hash 一致）
+3. 上一个 feature 的 backlog 已更新（该 feature 标记为 `[✅]`）
 
-若条件不满足，必须先补齐缺失的步骤，不得跳过。
+若条件不满足，必须**立即停止**并补齐缺失的步骤，不得"先继续做，后面再补"。
 
 
 ### 7. 非正常停止条件
