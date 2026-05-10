@@ -141,6 +141,41 @@
       "format": "agent-skills",
       "method": "symlink",
       "note": "Amazon Q Developer agents"
+    },
+    "codely": {
+      "detect_path": "~/.codely/",
+      "skills_dir": "~/.codely/",
+      "format": "yaml-customCommands",
+      "method": "append",
+      "note": "Continue fork, skills added as customCommands in config.yaml"
+    },
+    "continue": {
+      "detect_path": "~/.continue/",
+      "skills_dir": "~/.continue/",
+      "format": "yaml-customCommands",
+      "method": "append",
+      "note": "Continue fork, skills added as customCommands in config.yaml"
+    },
+    "monica-code": {
+      "detect_path": "~/.monica-code/",
+      "skills_dir": "~/.monica-code/",
+      "format": "json-customCommands",
+      "method": "append",
+      "note": "Skills added as customCommands in config.json"
+    },
+    "stepfun": {
+      "detect_path": "~/.stepfun/",
+      "skills_dir": "~/.stepfun/skill/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "Uses SKILL.md format in skill/ subdirectory"
+    },
+    "kilo": {
+      "detect_path": "~/.cache/kilo/",
+      "skills_dir": null,
+      "format": "agent-skills",
+      "method": "none",
+      "note": "No standard skills directory found"
     }
   }
 }
