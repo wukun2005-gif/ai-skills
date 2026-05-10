@@ -15,7 +15,7 @@ when_to_use: 用户说"开发"、"迭代开发"、"dev-iterate"、"开始开发"
 
 #### 0.1 Feature 范围解析规则
 
-1. 读取 `backlog.md`，按章节解析所有 feature 条目（以 `###` 标题开头、含 `[✅]` 或 `[ ]` 状态标记的行）。
+**Backlog 定位**：backlog 不一定有独立文件。按以下顺序查找：独立的 `backlog.md`；`PRD.md` 中的 backlog / feature list 章节；`DESIGN.md` 或 Dev Plan 中的 backlog / feature list 章节。找到后，按章节解析所有 feature 条目（以 `###` 标题开头、含 `[✅]` 或 `[ ]` 状态标记的行）。
 2. 为每个 feature 分配序号（按在文件中出现的顺序 1, 2, 3, ...）。
 3. 根据用户指定的范围筛选：
    - 用户指定编号（如 "2, 5, 7"）→ 只处理对应编号的 feature
@@ -59,7 +59,7 @@ when_to_use: 用户说"开发"、"迭代开发"、"dev-iterate"、"开始开发"
 
 #### P6. 临时文件清理
 
-调试/实验用的临时文件和脚本一律删除；临时安装的全局工具须卸载，临时的项目依赖从 `package.json` 中移除；不应提交的产物加入 `.gitignore`；交付前用 `git status` 核对工作区干净，仅保留与本次任务直接相关的改动。临时占用的资源（服务器、端口等）一律释放。
+调试/实验用的临时文件和脚本一律删除；临时安装的全局工具须卸载，临时的项目依赖从 `package.json` 中移除；不应提交的产物加入 `.gitignore`；交付前用 `git status` 核对工作区干净，仅保留与本次任务直接相关的改动。临时占用的资源（服务器、端口等）一律释放。涉及覆盖或删除用户文件/数据库/迁移脚本时，须先备份再操作。
 
 #### P7. 优先级与冲突仲裁
 
@@ -108,9 +108,10 @@ when_to_use: 用户说"开发"、"迭代开发"、"dev-iterate"、"开始开发"
 0. **`PRD.md`** — 产品需求文档（产品需求、背景、成功标准）
 1. **`DESIGN.md`** — 项目设计文档（产品需求、架构、接口定义）
 2. **`Implementation_plan.md`或'Dev Plan.md'或类似名字的文档** — 详细开发计划文档（feature 描述、改动范围、验证方式，backlog）
-3. **`backlog.md`** — 功能 backlog（feature 描述、改动范围、验证方式）
+3. **Backlog**（可能在独立的 `backlog.md`，也可能在 PRD/Design/Dev Plan 的 backlog 章节中）— 功能 backlog（feature 描述、改动范围、验证方式）
 4. **`CLAUDE.md`**（若存在）— 项目级工作规范
 5. **当前 feature 对应的源码文件** — 根据 backlog 中"改动范围"列出的文件
+6. **`git log` / 历史 Change Log** — 查看最近的提交历史和 `DESIGN.md` 中的 Change Log，了解既往改动脉络，避免重复劳动或踩旧坑
 
 确保充分理解：这个 feature 要做什么、改动哪些文件、怎么验证、和其他 feature 有没有依赖。
 
@@ -257,7 +258,9 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
    1. 列出本次任务中启动的所有后台服务/端口/进程，逐一终止
    2. 列出本次任务中生成的临时文件/脚本，逐一删除或加入 `.gitignore`
    3. 执行 `git status`，确认工作区仅包含本次 feature 相关改动
-6. **安全与数据完整性（P8.1）**：是否存在安全隐患
+6. **安全与数据完整性（P7）**：是否存在安全隐患
+
+> 其余原则（P2 充分理解现状 / P4 测试先行 / P7 优先级仲裁 / P9 沟通纪律）见 §5.4 原则自检。
 
 **强制输出**：自检完成后，输出一行：
 ```
@@ -322,7 +325,7 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
 
 #### 5.5 Commit & Push（自动执行）
 
-§5.3 和 §5.4 全部通过后，自动执行 commit & push，无需用户确认（非正常停止条件触发时除外）：
+§5.1 ~ §5.4 全部通过后，自动执行 commit & push，无需用户确认（非正常停止条件触发时除外）：
 1. `git status` + `git diff` 分析变更
 2. 起草提交信息（遵循项目历史风格），末尾按 commit skill 的 trailer 对照表和检测规则生成 `Co-Authored-By` trailer（读取 skill 目录 `trailer-map.json`（`~/.ai-skills/commit/`）；若工具或模型未命中，WebSearch 查邮箱后更新 map 和所有 SKILL.md 副本）
 3. `git add` 相关文件（仅与当前功能相关的文件）
@@ -339,7 +342,7 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
 
 #### 5.6 更新 Backlog
 
-将该 feature 在 `backlog.md` 中的状态更新为已完成（`[✅]`）。
+将该 feature 在 backlog 中的状态更新为已完成（`[✅]`）。
 
 **强制输出**：
 ```
@@ -352,7 +355,7 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
 
 1. **确认输出完整性**：检查 §5.1 ~ §5.6 的 6 行确认输出是否全部存在
 2. **验证 commit & push**：执行 `git log -1 --oneline` 确认最新 commit 与 §5.5 输出的 hash 一致；执行 `git status` 确认不含 `ahead` 字样（push 已成功）
-3. **验证 backlog**：读取 `backlog.md`，确认该 feature 已标记 `[✅]`
+3. **验证 backlog**：读取 backlog，确认该 feature 已标记 `[✅]`
 
 全部通过后输出：
 ```
@@ -372,7 +375,7 @@ Task A（开发/修复）→ Task B（测试）→ Task A（修复）→ Task B�
 
 1. 上一个 feature 的 §5 Gate 输出存在（`✅ §5 Gate 通过`）
 2. `git log -1 --oneline` 确认最新 commit 存在且与 §5.5 记录的 hash 一致
-3. `backlog.md` 中上一个 feature 已标记 `[✅]`
+3. backlog 中上一个 feature 已标记 `[✅]`
 
 若条件不满足，必须先补齐缺失的步骤，不得跳过。
 
