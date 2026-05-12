@@ -123,10 +123,10 @@
     },
     "codeartsdoer": {
       "detect_path": "~/.codeartsdoer/",
-      "skills_dir": "~/.codeartsdoer/cache/system/skills/",
+      "skills_dir": "~/.codeartsdoer/skills/",
       "format": "agent-skills",
       "method": "symlink",
-      "note": "CodeArts Doer"
+      "note": "CodeArts Doer 全局级，同时分发到项目级 ./.codeartsdoer/skills/"
     },
     "vscode-codebot-plugin": {
       "detect_path": "~/.vscode/extensions/huaweicloud.vscode-codebot-26.3.6/",
