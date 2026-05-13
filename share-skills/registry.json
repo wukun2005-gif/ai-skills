@@ -40,9 +40,13 @@
     },
     "kiro": {
       "detect_path": "~/.kiro/",
-      "skills_dir": "~/.kiro/skills/",
-      "format": "agent-skills",
-      "method": "symlink"
+      "skills_dir": "~/.kiro/steering/",
+      "format": "kiro-steering",
+      "method": "copy",
+      "frontmatter": {
+        "inclusion": "auto"
+      },
+      "note": "Kiro 使用 steering files，配置为 inclusion: auto 自动加载"
     },
     "qoder": {
       "detect_path": "~/.qoder/",

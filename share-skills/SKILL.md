@@ -161,6 +161,38 @@ description: <从 SKILL.md frontmatter 的 description 字段提取>
 
 重建整个文件，不追加（避免重复内容）。
 
+#### 3e. Kiro Steering 格式（method: copy）
+
+适用于注册表中 `format: "kiro-steering"` 的工具（Kiro）。在 steering 目录下生成 `.md` 文件：
+
+```markdown
+---
+inclusion: auto
+---
+
+# <Skill Name>
+
+当用户说"<触发词>"时执行。
+
+<SKILL.md 的正文内容，精简为核心流程>
+```
+
+**Kiro 特殊要求：**
+1. **文件名格式**：`<skill-name>-skill.md`（如 `commit-skill.md`）
+2. **Frontmatter**：必须包含 `inclusion: auto` 以自动加载
+3. **内容精简**：Kiro 的 steering files 应该是精简版，只保留核心流程和关键原则，不需要完整的详细说明
+4. **触发词说明**：在开头明确说明触发条件（从 SKILL.md 的 `when_to_use` 字段提取）
+5. **结构化**：使用清晰的标题层级，便于 Kiro 理解和执行
+
+**内容转换规则：**
+- 提取 `when_to_use` → 转为"当用户说...时执行"
+- 提取核心流程步骤 → 保留主要步骤标题和关键说明
+- 删除过于详细的示例、表格、边界情况说明
+- 保留关键原则和禁止项
+- 目标：让 Kiro 能理解要做什么，而不是如何做每个细节
+
+**⚠️ 极度重要（防偷懒指令）：** 虽然是精简版，但必须保留完整的核心流程逻辑，不可以用占位符代替关键步骤！
+
 #### 3e. Claude Code 插件（method: none）
 
 适用于注册表中标记为 `method: "none"` 的工具（如 TRAE）。无需操作，这些工具通过 Claude Code 插件自动读取 `~/.claude/skills/`。
@@ -190,7 +222,7 @@ description: <从 SKILL.md frontmatter 的 description 字段提取>
 - **TRAE** 无需操作：已有 Claude Code 插件，自动读取 `~/.claude/skills/`
 - **Windsurf** 使用 workflow 格式，如果 SKILL.md 中有 `allowed-tools` 等 Agent Skills 专有字段，会在 Windsurf 中被忽略但不影响使用
 - **Antigravity** 使用 workflow 格式，description 最多 250 字符、正文最多 12000 字符，内容中不能含 `---`
-- **Kiro** 使用 Agent Skills 标准，SKILL.md 格式与本项目一致，symlink 即可；另有 steering 文件（`~/.kiro/steering/*.md`）用于项目规范
+- **Kiro** 使用 steering files 格式，需要精简为核心流程，配置 `inclusion: auto` 自动加载。文件名格式：`<skill-name>-skill.md`
 - **Qoder** 使用 Agent Skills 标准，SKILL.md 格式与本项目一致，symlink 即可；另有 rules（`.qoder/rules/`）用于项目规则
 - **Cline** 的 `.clinerules` 是项目级文件，需要在每个项目中创建
 - **VS Code Copilot** 的 skills 是项目级副本，修改全局 skill 后需重新运行 `--sync` 更新
