@@ -95,6 +95,7 @@ allowed-tools:
 | claude-sonnet-4-6 | Claude Sonnet 4.6 | noreply@anthropic.com |
 | claude-haiku-4-5 | Claude Haiku 4.5 | noreply@anthropic.com |
 | gemini-3-flash | Gemini 3 Flash | noreply@google.com |
+| deepseek-v4-pro | DeepSeek-V4-Pro | noreply@deepseek.com |
 
 #### 检测规则
 

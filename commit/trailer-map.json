@@ -45,6 +45,10 @@
     "claude-haiku-4-5": {
       "name": "Claude Haiku 4.5",
       "email": "noreply@anthropic.com"
+    },
+    "deepseek-v4-pro": {
+      "name": "DeepSeek-V4-Pro",
+      "email": "noreply@deepseek.com"
     }
   }
 }
