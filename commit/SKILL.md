@@ -61,6 +61,40 @@ allowed-tools:
 - 在排除说明中注明 `.gitignore` 规则来源（如 `backlog.md → .gitignore:24`）
 - 注意：git 已追踪的文件即使匹配 `.gitignore` 仍会出现在 `git status` 中，必须手动排除
 
+### 1.5 静态代码检查预检（强制）
+
+**在进入后续步骤前，必须执行项目的静态代码检查并确保零 error。**
+
+**发现项目使用的静态检查工具**：
+查看 `package.json`（JS/TS 项目）、`Cargo.toml`（Rust 项目）、`pyproject.toml`（Python 项目）、`Makefile` 或其他配置文件，确定项目使用哪种静态检查工具：
+- **JavaScript/TypeScript**：ESLint (`npm run lint` / `pnpm lint` / `yarn lint`)
+- **Python**：Pylint、Flake8、Ruff (`pylint` / `flake8` / `ruff check`)
+- **Rust**：Clippy、rustc (`cargo clippy` / `cargo check`)
+- **Go**：go vet、staticcheck (`go vet` / `staticcheck`)
+- **Java**：Checkstyle、SpotBugs
+- **其他**：查阅项目文档或询问用户
+
+**执行检查**：
+使用项目配置的检查命令运行静态分析。如果无法确定命令，询问用户或跳过（但在步骤 4b 确认时提醒）。
+
+**检查结果判定**：
+- ✅ **零 errors，有 warnings** → 允许继续（warnings 通常可接受）
+- ❌ **有 errors** → **必须立即修复所有 errors 后才能继续**
+- ⚠️ **项目未配置静态检查** → 跳过此步骤，但在步骤 4b 确认时提醒用户"项目未配置静态代码检查工具，建议添加"
+
+**修复原则**：
+1. 静态检查 errors 必须修复，不得以"功能正常"、"测试通过"、"时间紧迫"为由绕过
+2. 修复方式遵循工具提示（如未使用变量加前缀或删除、导入未使用模块等）
+3. 修复后重新运行检查命令确认零 errors
+4. 若某条规则确实不合理，应告知用户并建议在配置中禁用，但仍需本次修复或正式禁用后才能提交
+
+**强制输出**：
+```
+✅ §1.5 静态检查预检通过 — <工具名> 0 errors, N warnings [ | 已修复 M 个 errors: 列出修复项]
+```
+
+未输出此确认而直接进入步骤 2，视为流程违规。存在未修复的静态检查 errors 而继续提交，视为严重违规。
+
 ### 2. 推断提交风格
 
 从 `git log` 中推断项目的提交约定：

@@ -56,9 +56,10 @@
     },
     "cline": {
       "detect_path": "~/.cline/",
-      "skills_dir": "~/.clinerules",
-      "format": "markdown-merge",
-      "method": "merge"
+      "skills_dir": "~/.cline/skills/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "Cline 全局 skills 目录，参见 https://docs.cline.bot/customization/skills#where-skills-live"
     },
     "vscode": {
       "detect_path": "/Applications/Visual Studio Code.app",
@@ -75,10 +76,10 @@
     },
     "trae-cn": {
       "detect_path": "~/.trae-cn/",
-      "skills_dir": "~/.trae-cn/extensions/",
+      "skills_dir": "~/.trae-cn/skills/",
       "format": "agent-skills",
-      "method": "copy",
-      "note": "TRAE 国内版"
+      "method": "symlink",
+      "note": "TRAE 国内版全局 skills，参见 https://docs.trae.cn/ide/skills#991b40ad"
     },
     "codebuddycn": {
       "detect_path": "~/.codebuddycn/",
