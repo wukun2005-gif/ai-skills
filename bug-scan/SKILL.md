@@ -179,6 +179,7 @@ find . -type f \( -name "main.*" -o -name "entry.*" -o -name "index.*" \
 | **被注释掉的调用** | grep 被注释的 import/调用 | 曾经接入过，后来被注释而非删除 |
 | **替代实现并存** | 两个模块实现相同功能，只有一条路径被调用 | 新实现替代了旧的，旧代码未清理 |
 | **入口文件未引用的子模块** | 从入口文件 trace 依赖树，未被触及的模块 | 子模块存在但整个依赖链断裂 |
+| **import 了但从未调用** | 某文件 import 了模块/函数，但该文件的实际执行路径中从未调用它；可能是接入了一半、重构后残留、或被替代路径绕过 | 比"export 未被 import"更隐蔽：import 存在，编译不报错，但运行时该代码是死的 |
 | **枚举/状态机只实现了部分值** | 枚举类型定义了 N 个值，但代码只读写其中少数几个；状态机设计了完整流转，但实际只有几个转换被编码 | 设计完整、实现残缺，用户在中间阶段看不到状态反馈 |
 | **标签映射与枚举不匹配** | 存在 enum→label 的映射表（如 WORKFLOW_LABELS），但 key 与实际 enum 成员对不上 | 即使状态被推进，显示的也是原始值而非人类可读标签 |
 
@@ -248,7 +249,62 @@ grep -rn "LABEL\|label.*=\|display.*name\|_LABELS\|_NAMES\|statusText\|statusLab
 - 标签映射表的 key 与枚举成员不一致 → **标签错位**，P1（用户可见问题）
 - 状态赋值处使用 `?? oldState` 透传模式 → **状态推进被跳过**，P1
 
-##### 2.4.4 分析每个死 Feature 的处置
+##### 2.4.4 import 未调用专项检测
+
+**典型场景：模块被 import 了，编译通过，但实际运行时从未被执行。** 常见于"接入了一半"、"重构后残留"、"新实现替代旧实现但 import 未清理"等情况。比"export 未被 import"更隐蔽，因为 import 语句本身存在，静态分析工具通常不会报错。
+
+**Step 1：找出所有 import 语句**
+
+```bash
+# TypeScript/JavaScript — 找所有 import 语句
+grep -rn "^import\s" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" . \
+  | grep -v node_modules | grep -v "\.d\.ts" | grep -v dist
+
+# Python — 找所有 import 语句
+grep -rn "^import\s\|^from\s.*import" --include="*.py" . | grep -v node_modules | grep -v __pycache__
+
+# Go — 找所有 import 块（需解析 import 后的实际使用）
+grep -rn "^import\|^\s\"" --include="*.go" . | grep -v vendor
+```
+
+**Step 2：对每个 import，检查被导入的符号是否在该文件中被实际调用/使用**
+
+```bash
+# 方法：对每个 import 行提取导入的符号名，在同一文件中搜索该符号的使用（排除 import 行本身）
+# 例：假设 retriever.ts 有 "import { rerank } from './reranker'"
+# 则在 retriever.ts 中搜索 rerank 的使用（排除 import 行）：
+grep -n "rerank" retriever.ts | grep -v "^.*import"
+
+# 批量检测思路（伪代码）：
+# 对每个源文件 F：
+#   提取 F 中所有 import 的符号列表 [s1, s2, s3, ...]
+#   对每个符号 si：
+#     在 F 中 grep si，排除 import 行
+#     如果匹配数 == 0 → si 是 import 了但从未调用的死符号
+```
+
+**Step 3：区分"真死"和"假死"**
+
+import 了但未调用，不一定是死代码，需排除以下情况：
+
+| 情况 | 判断方法 | 处理 |
+|------|---------|------|
+| **类型导入** | `import type { X }` 或仅在类型注解中使用 | 不是死代码，排除 |
+| **副作用导入** | `import './polyfill'` 无具名符号 | 不是死代码，排除 |
+| **re-export** | 导入后又 export 出去 | 不是死代码，排除 |
+| **动态使用** | 通过反射、字符串拼接、eval 等使用 | 需人工判断，标记为"待确认" |
+
+**判定标准：**
+- 文件 A import 了符号 X，但 A 中 X 的唯一出现就是 import 行 → **import 未调用**，P1
+- 该符号在其他文件中被正常调用 → 问题出在 A 的 import 多余，或 A 应该调用但忘了
+- 该符号在所有文件中都只出现在 import 行 → 整个模块是死代码，P0
+
+**典型真实案例：**
+- `retriever.ts` import 了 `rerank`、`hybridSearch`，但 `retrieve()` 函数从未调用它们，实际检索流程只走纯余弦相似度
+- `vectorStore.ts`、`bm25Search.ts`、`annIndex.ts` 被 import 但对应的检索增强功能从未接入实际 pipeline
+- 这些属于"功能写了但接入了一半"，设计文档有记录但代码未跟上
+
+##### 2.4.5 分析每个死 Feature 的处置
 
 对发现的每个死 feature，判断：
 
@@ -256,15 +312,20 @@ grep -rn "LABEL\|label.*=\|display.*name\|_LABELS\|_NAMES\|statusText\|statusLab
    - 证据：新模块实现了相同功能，且新模块已被调用
    - backlog 条目：清理死代码，删除未使用的旧实现
 
-2. **功能漏接** → 标记为"feature 未接入"
+2. **import 了但从未调用** → 标记为"import 未调用 / 功能未接入"
+   - 证据：文件 A import 了符号 X，但 A 的执行路径中从未调用 X；X 本身实现完整
+   - 判断：如果 X 在其他文件中被调用 → A 的 import 多余应清理；如果 X 在所有文件中都未被调用 → 整个模块是死代码
+   - backlog 条目：接入调用链（功能漏接）或删除 import 和模块（死代码清理）
+
+3. **功能漏接** → 标记为"feature 未接入"
    - 证据：代码逻辑完整，有 UI/命令/API 定义，但缺少调用链
    - backlog 条目：补全调用链，将 feature 接入用户可用的入口
 
-3. **实验性/预留代码** → 标记为"未完成 feature"
+4. **实验性/预留代码** → 标记为"未完成 feature"
    - 证据：代码有 TODO 标记，或实现明显不完整
    - backlog 条目：决定是完成还是删除
 
-##### 2.4.5 验证手段
+##### 2.4.6 验证手段
 
 ```bash
 # 对可疑的死模块，验证其依赖链
@@ -279,7 +340,7 @@ git log --oneline -5 -- <file>
 # 如果文件 A 和文件 B 实现了类似功能，grep 看谁被 import
 ```
 
-##### 2.4.6 写入 Backlog 格式
+##### 2.4.7 写入 Backlog 格式
 
 死 feature 问题统一使用 `[DeadCode]` 维度标签：
 
@@ -320,6 +381,28 @@ git log --oneline -5 -- <file>
 **验证方式**:
 1. 创建新案件，上传文档后检查状态是否从 empty 变为 documents-uploaded
 2. 确认 CaseHistoryPanel 显示中文标签而非原始字符串
+```
+
+import 未调用的 backlog 示例：
+
+```markdown
+### [BUG-XXX] [DeadCode] re-ranker / hybridSearch 被 import 但从未调用，检索增强功能全部未接入
+
+**来源**: import 未调用检测
+**问题**: retriever.ts import 了 rerank、hybridSearch，但 retrieve() 函数从未调用它们。实际检索流程只走纯语义余弦相似度，reranker 的多信号加权排序（语义 0.4 + 关键词 0.25 + 类别 0.15 + 法条引用 0.15 + 深度 0.05）对用户完全不可用。同样的情况还有 bm25Search.ts、annIndex.ts、vectorStore.ts——都 import 了但整个检索增强 pipeline 从未接入。
+**处置判断**: 功能漏接 — 模块实现完整，import 存在，但调用链断裂
+**证据**:
+- `client/src/lib/knowledge/retriever.ts:9`: `import { rerank } from './reranker'`，但 retrieve() 内部从未调用 rerank()
+- `client/src/lib/knowledge/retriever.ts`: 同样 import 了 hybridSearch 但未使用
+- `client/src/lib/knowledge/reranker.ts`: rerank() 实现完整，5 个信号加权，但零调用
+- `client/src/lib/knowledge/bm25Search.ts`: BM25 关键词检索实现完整，但零调用
+- `server/src/routes/knowledge.ts`: 实际检索只用余弦相似度（阈值 0.3），无 re-rank 步骤
+**改动范围**:
+- `client/src/lib/knowledge/retriever.ts`: 在 retrieve() 返回前调用 rerank() 对结果重排序
+- 或 `server/src/routes/knowledge.ts`: 在 server 端接入 hybridSearch / rerank
+**验证方式**:
+1. 在 retrieve() 中添加 rerank() 调用后，检索同一 query 对比 top-K 结果顺序变化
+2. 确认 rerank 的权重配置通过 RerankConfig 可调
 ```
 
 ---
