@@ -1,8 +1,8 @@
 ---
 name: bug-scan
 description: >
-  全项目 bug 自查：结合 commit 历史分析 bug-fix 共性模式，静态检查 + 动态运行检查，
-  找出测试覆盖盲区，将所有问题写入 backlog.md 并返回 feature ID 列表。
+  全项目 bug 自查：结合 commit 历史分析 bug-fix 共性模式，静态检查 + 死 Feature 检测 + 动态运行检查，
+  找出测试覆盖盲区和零价值死代码，将所有问题写入 backlog.md 并返回 feature ID 列表。
 when_to_use: 用户说"自查bugs"、"bug扫描"、"bug审查"、"找bug"、"查bug"、"bug scan"、"全面检查"
 ---
 
@@ -147,6 +147,179 @@ grep -rn "console\.log\|console\.error\|console\.warn" --include="*.{js,ts,jsx,t
 
 # 未使用的变量（ESLint 规则 no-unused-vars）
 # 已在静态检查工具中覆盖
+```
+
+#### 2.4 死 Feature / 死代码检测
+
+**找出"写了但没人用"的 feature：代码实现了功能，但从未被调用、未接入入口、或已被替代代码绕过，对用户零价值。**
+
+##### 2.4.1 扫描入口点，建立调用图
+
+```bash
+# 找到所有入口文件（main/entry/index/app/server 等）
+find . -type f \( -name "main.*" -o -name "entry.*" -o -name "index.*" \
+  -o -name "app.*" -o -name "server.*" -o -name "cli.*" \) \
+  ! -path "*/node_modules/*" ! -path "*/.git/*" ! -path "*/dist/*" \
+  ! -name "*.test.*" ! -name "*.spec.*" ! -name "*.d.ts"
+
+# 找到所有 export 但从未被 import 的模块/函数
+# （先列出所有 export，再检查是否被其他文件 import）
+```
+
+##### 2.4.2 识别死 Feature 的典型特征
+
+逐个检查以下模式：
+
+| 模式 | 检测方法 | 说明 |
+|------|---------|------|
+| **无入口的页面/路由** | grep 路由定义，检查是否被导航/菜单引用 | 有页面组件但没有路由指向它 |
+| **无调用的 CLI 命令** | grep 命令注册，检查是否在 help/docs 中列出 | 注册了命令但用户发现不了 |
+| **export 未被 import** | 对每个 export symbol，grep 整个项目看是否有 import | 工具函数/类写了但没人用 |
+| **功能开关永关** | grep feature flag/配置项，检查默认值和调用分支 | feature flag 默认 false，且没有开启路径 |
+| **被注释掉的调用** | grep 被注释的 import/调用 | 曾经接入过，后来被注释而非删除 |
+| **替代实现并存** | 两个模块实现相同功能，只有一条路径被调用 | 新实现替代了旧的，旧代码未清理 |
+| **入口文件未引用的子模块** | 从入口文件 trace 依赖树，未被触及的模块 | 子模块存在但整个依赖链断裂 |
+| **枚举/状态机只实现了部分值** | 枚举类型定义了 N 个值，但代码只读写其中少数几个；状态机设计了完整流转，但实际只有几个转换被编码 | 设计完整、实现残缺，用户在中间阶段看不到状态反馈 |
+| **标签映射与枚举不匹配** | 存在 enum→label 的映射表（如 WORKFLOW_LABELS），但 key 与实际 enum 成员对不上 | 即使状态被推进，显示的也是原始值而非人类可读标签 |
+
+##### 2.4.3 枚举/状态机缺口专项检测
+
+**这是设计-实现 gap 的典型表现：类型系统定义了完整的状态空间，但业务代码只触及了其中一小部分。**
+
+**Step 1：找到所有枚举和状态机定义**
+
+```bash
+# TypeScript/JavaScript — 找 enum 定义和联合类型
+grep -rn "enum\s\+\w\+" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+grep -rn "type\s\+\w\+\s*=" --include="*.ts" --include="*.tsx" . | grep -v node_modules | grep "|"
+
+# Python — 找 Enum 类和 Literal 类型
+grep -rn "class\s\+\w\+.*Enum" --include="*.py" . | grep -v node_modules
+grep -rn "Literal\[" --include="*.py" . | grep -v node_modules
+
+# Go — 找 const iota 块
+grep -rn "const\s\+(" --include="*.go" . | grep -v vendor
+grep -rn "iota" --include="*.go" . | grep -v vendor
+
+# 通用 — 找设计文档中定义的状态机
+grep -rn "状态机\|state machine\|workflow.*state\|状态流转" --include="*.md" . | head -20
+```
+
+**Step 2：对每个枚举/状态机，统计值的实际使用率**
+
+```bash
+# 对枚举的每个成员，grep 项目看是否被赋值或匹配
+# 例：假设枚举有 empty, case-ready, documents-uploaded, text-extracted, text-confirmed, opinion-analyzed
+# 对每个值检查：
+grep -rn '"case-ready"\|CaseStatus\.caseReady\|case_ready' --include="*.ts" --include="*.tsx" . | grep -v node_modules | grep -v "\.d\.ts"
+grep -rn '"documents-uploaded"\|CaseStatus\.documentsUploaded' --include="*.ts" --include="*.tsx" . | grep -v node_modules | grep -v "\.d\.ts"
+# ... 逐个检查
+
+# 高效方法：提取枚举所有成员，批量检查
+# 1. 从 enum 定义中提取所有成员名
+# 2. 对每个成员名 grep 项目（排除定义文件本身）
+# 3. 只出现 1 次（定义处）= 死值
+```
+
+**Step 3：检查状态推进逻辑是否完整**
+
+```bash
+# 找所有对状态字段的赋值操作
+grep -rn "workflowState\s*=" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+grep -rn "status\s*=" --include="*.ts" --include="*.tsx" . | grep -v node_modules | grep -v "loading\|error\|success"
+grep -rn "setState\|setStatus\|updateState" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+
+# 检查是否有"透传旧状态"的模式（典型反模式）
+grep -rn "currentCase.*workflowState.*??.*empty\|existing.*status" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+```
+
+**Step 4：检查标签映射与枚举的匹配度**
+
+```bash
+# 找 label/显示名 映射表
+grep -rn "LABEL\|label.*=\|display.*name\|_LABELS\|_NAMES\|statusText\|statusLabel" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+
+# 对比映射表的 key 和枚举成员，列出不匹配项
+```
+
+**判定标准：**
+- 枚举成员在项目中仅出现 1 次（仅定义处）→ **死枚举值**，P1
+- 状态机设计了 N 个转换，代码只实现了 <50% → **状态机缺口**，P1
+- 标签映射表的 key 与枚举成员不一致 → **标签错位**，P1（用户可见问题）
+- 状态赋值处使用 `?? oldState` 透传模式 → **状态推进被跳过**，P1
+
+##### 2.4.4 分析每个死 Feature 的处置
+
+对发现的每个死 feature，判断：
+
+1. **已有替代代码** → 标记为"死代码应清理"
+   - 证据：新模块实现了相同功能，且新模块已被调用
+   - backlog 条目：清理死代码，删除未使用的旧实现
+
+2. **功能漏接** → 标记为"feature 未接入"
+   - 证据：代码逻辑完整，有 UI/命令/API 定义，但缺少调用链
+   - backlog 条目：补全调用链，将 feature 接入用户可用的入口
+
+3. **实验性/预留代码** → 标记为"未完成 feature"
+   - 证据：代码有 TODO 标记，或实现明显不完整
+   - backlog 条目：决定是完成还是删除
+
+##### 2.4.5 验证手段
+
+```bash
+# 对可疑的死模块，验证其依赖链
+# 从入口文件开始，trace import/require 链
+# 未出现在链中的模块 = 死代码
+
+# 检查 git log 看该文件最后一次被"使用"是什么时候
+git log --oneline -5 -- <file>
+# 如果最后一次改动是 "remove" / "refactor" / "cleanup"，大概率已被替代
+
+# 检查是否有"替代者"
+# 如果文件 A 和文件 B 实现了类似功能，grep 看谁被 import
+```
+
+##### 2.4.6 写入 Backlog 格式
+
+死 feature 问题统一使用 `[DeadCode]` 维度标签：
+
+```markdown
+### [BUG-XXX] [DeadCode] 问题标题
+
+**来源**: 死 Feature 检测
+**问题**: [具体描述，说明这个 feature 为什么对用户零价值]
+**处置判断**: 已有替代 / 功能漏接 / 未完成 feature
+**证据**:
+- `path/to/dead-file`: [说明为什么不被调用]
+- `path/to/caller`: [如果有的话，说明替代路径]
+**改动范围**:
+- `path/to/file`: [具体改动描述：删除 / 接入入口 / 补全实现]
+**验证方式**:
+1. [具体可执行的验证步骤]
+2. [预期结果]
+```
+
+枚举/状态机缺口的 backlog 示例：
+
+```markdown
+### [BUG-XXX] [DeadCode] 状态机仅实现 3/19 个状态，前半程用户无反馈
+
+**来源**: 枚举/状态机缺口检测
+**问题**: CaseWorkflowState 定义了 19 个状态，但代码只在 3 处写入（empty、opinion-analyzed、argument-mapped）。中间的 case-ready、documents-uploaded、text-extracted、text-confirmed 从未被赋值，用户上传文件后状态仍显示 "empty"。
+**处置判断**: 功能漏接 — 设计完整但实现残缺
+**证据**:
+- `shared/src/types/domain.ts`: CaseWorkflowState 定义了 19 个状态成员
+- `NewCasePage.tsx:24`: 创建案件时写入 "empty"
+- `router.tsx:354,543`: 意见分析完成时写入 "opinion-analyzed"
+- `CaseSetupPage.tsx`: 上传文件时透传旧状态 `workflowState: (currentCase?.workflowState ?? "empty")`
+- `CaseHistoryPanel.tsx:197-204`: WORKFLOW_LABELS 的 6 个 key 中只有 empty 匹配枚举，其余 5 个 key 根本不在枚举中
+**改动范围**:
+- `CaseSetupPage.tsx`: 文档上传成功后推进到 documents-uploaded
+- `CaseBaselineForm.tsx`: 文本提取完成后推进到 text-extracted
+- `CaseHistoryPanel.tsx`: 修正 WORKFLOW_LABELS，key 与 CaseWorkflowState 枚举完全对应
+**验证方式**:
+1. 创建新案件，上传文档后检查状态是否从 empty 变为 documents-uploaded
+2. 确认 CaseHistoryPanel 显示中文标签而非原始字符串
 ```
 
 ---
@@ -322,6 +495,7 @@ fi
 📊 扫描摘要：
 - Commit 历史分析：发现 N 个 bug 模式，M 个高风险文件
 - 静态检查：X errors, Y warnings
+- 死 Feature 检测：D 个死代码/F 个未接入 feature
 - 测试覆盖：Z% 覆盖率，K 个盲区
 - 动态运行：P 个运行时问题
 
@@ -329,6 +503,7 @@ fi
 1. [PATTERN-1] 空值/undefined 未检查 — 出现 5 次
 2. [PATTERN-2] 数组越界/空数组 — 出现 3 次
 3. ...
+N. [DEAD-FEATURE] 死代码/未接入 feature — D 处（应清理 / 应接入）
 
 📝 写入 backlog.md — 共 Q 条新 feature：
 - P0: A 条（关键）
