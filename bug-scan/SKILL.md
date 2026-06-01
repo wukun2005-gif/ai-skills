@@ -249,7 +249,94 @@ grep -rn "LABEL\|label.*=\|display.*name\|_LABELS\|_NAMES\|statusText\|statusLab
 - 标签映射表的 key 与枚举成员不一致 → **标签错位**，P1（用户可见问题）
 - 状态赋值处使用 `?? oldState` 透传模式 → **状态推进被跳过**，P1
 
-##### 2.4.4 import 未调用专项检测
+##### 2.4.4 死代码专项检测（AI 辅助开发最高优先级）
+
+**这是 AI 辅助开发最常见的问题模式：AI 写了完整的代码实现，但没有确保它被实际调用、配置被实际使用、参数被实际传递。** 这类问题的特点是：代码本身质量高、实现完整、编译通过，但运行时完全无效。
+
+**重要：发现死代码后，必须仔细调查其存在原因，再决定处理方式（清理删除 / 集成被调用 / 移植后被调用 / 保留待定），不能一刀切删除。**
+
+**Step 1：检测"配置驱动的功能未生效"模式**
+
+用户在 UI 配置了选项，但代码忽略了配置，始终使用默认值。
+
+```bash
+# 找所有配置读取点（settings/config 读取）
+grep -rn "settings\.\|config\.\|readSettings\|getConfig" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+
+# 对每个配置读取点，追踪配置值是否被传递给实际执行的函数
+# 例：settings.knowledgeProviders 被读取，但 embedConfig 未被使用
+
+# 找所有函数签名中以下划线开头的参数（表示"未使用"的约定）
+grep -rn "function.*(_[a-zA-Z]" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+grep -rn "=>.*\b_[a-zA-Z]" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+
+# 找所有被赋值但从未传递的变量
+# 配置读取 → 赋值给变量 → 变量从未被使用
+```
+
+**判定标准：**
+- 配置值被读取并赋给变量，但该变量从未被传递给实际执行函数 → **配置未生效**，P0
+- 函数参数以下划线开头（如 `_embedConfig`）但调用方仍在传递参数 → **参数被忽略**，P1
+- UI 允许用户配置选项，但代码始终使用硬编码默认值 → **配置误导用户**，P0
+
+**Step 2：检测"本地实现被绕过"模式**
+
+有本地算法/功能实现，但调用链直接跳过了它。
+
+```bash
+# 找所有实现了"本地"逻辑的函数（本地算法、本地模型、fallback 等）
+grep -rn "local\|Local\|本地\|fallback\|降级" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+
+# 对每个本地实现，检查是否被实际调用
+# 例：reranker.ts 实现了本地重排序，但 search API 直接返回向量相似度结果
+
+# 找所有"if 有远程配置则用远程，else 直接返回"的模式（缺少本地 fallback）
+grep -rn "if.*baseUrl\|if.*apiKey\|if.*remote" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+```
+
+**判定标准：**
+- 有本地实现，但 `if (remoteConfig) { ... } else { return default; }` 跳过了本地实现 → **本地实现未接入**，P0
+- 有 fallback 逻辑但 fallback 路径从未被执行（因为条件永远为真/假） → **死 fallback**，P1
+
+**Step 3：检测"API 端点未被前端调用"模式**
+
+后端实现了 API，但前端没有调用；或者前端调用了错误的端点。
+
+```bash
+# 找所有 API 端点定义
+grep -rn "router\.\(get\|post\|put\|delete\)\|app\.\(get\|post\|put\|delete\)" --include="*.ts" --include="*.js" . | grep -v node_modules
+
+# 找所有前端 fetch/axios 调用
+grep -rn "fetch(\|axios\.\|\.get(\|\.post(" --include="*.ts" --include="*.tsx" . | grep -v node_modules
+
+# 对比：哪些后端端点没有对应的前端调用
+```
+
+**Step 4：检测"设计文档与实现不一致"模式**
+
+设计文档描述了功能 A/B/C，但代码只实现了 A。
+
+```bash
+# 找设计文档中描述的功能点
+grep -rn "支持\|应该\|需要\|shall\|should\|must\|设计" --include="*.md" . | head -50
+
+# 对比代码实现：设计文档说"支持本地/远程"，检查代码是否真的支持
+```
+
+**Step 5：检测"参数传递断裂"模式**
+
+函数 A 读取配置，函数 B 执行逻辑，但 A 没有把配置传递给 B。
+
+```bash
+# 找所有函数调用，检查参数是否完整
+# 例：injectKnowledge({ query, systemPrompt, config, embedConfig })
+# 但 retrieve() 的第三个参数被命名为 _embedConfig（未使用）
+
+# 找所有"读取配置 → 构建参数 → 调用函数"的链路
+# 检查参数是否真的被传递和使用
+```
+
+##### 2.4.5 import 未调用专项检测
 
 **典型场景：模块被 import 了，编译通过，但实际运行时从未被执行。** 常见于"接入了一半"、"重构后残留"、"新实现替代旧实现但 import 未清理"等情况。比"export 未被 import"更隐蔽，因为 import 语句本身存在，静态分析工具通常不会报错。
 
@@ -342,23 +429,32 @@ git log --oneline -5 -- <file>
 
 ##### 2.4.7 写入 Backlog 格式
 
-死 feature 问题统一使用 `[DeadCode]` 维度标签：
+死代码问题统一使用 `[DeadCode]` 维度标签：
 
 ```markdown
 ### [BUG-XXX] [DeadCode] 问题标题
 
-**来源**: 死 Feature 检测
-**问题**: [具体描述，说明这个 feature 为什么对用户零价值]
-**处置判断**: 已有替代 / 功能漏接 / 未完成 feature
+**来源**: 死代码检测
+**问题**: [具体描述，说明这段代码为什么没有被调用]
+**处置判断**: [需调查后决定，见下方处置选项]
 **证据**:
 - `path/to/dead-file`: [说明为什么不被调用]
-- `path/to/caller`: [如果有的话，说明替代路径]
+- `path/to/caller`: [如果有的话，说明替代路径或应该调用的位置]
 **改动范围**:
-- `path/to/file`: [具体改动描述：删除 / 接入入口 / 补全实现]
+- `path/to/file`: [具体改动描述]
 **验证方式**:
 1. [具体可执行的验证步骤]
 2. [预期结果]
 ```
+
+**处置选项**（必须仔细调查后再选择）：
+
+| 处置方式 | 适用场景 | 调查要点 |
+|---------|---------|---------|
+| **清理删除** | 代码已被替代、功能已废弃、设计残留 | 确认无任何调用路径，git log 显示已被替代 |
+| **集成被调用** | 代码实现完整且有价值，但调用链断裂 | 确认功能有价值，找到正确的调用位置 |
+| **移植后被调用** | 代码在错误的位置（如客户端逻辑应在服务端） | 确认架构设计意图，找到正确的位置 |
+| **保留待定** | 预留设计或实验性功能 | 确认有明确的未来使用计划 |
 
 枚举/状态机缺口的 backlog 示例：
 
@@ -403,6 +499,43 @@ import 未调用的 backlog 示例：
 **验证方式**:
 1. 在 retrieve() 中添加 rerank() 调用后，检索同一 query 对比 top-K 结果顺序变化
 2. 确认 rerank 的权重配置通过 RerankConfig 可调
+```
+
+死代码的 backlog 示例（配置未生效 + 本地实现被绕过）：
+
+```markdown
+### [BUG-XXX] [DeadCode] RAG 系统 Embedding/Re-ranker 调用逻辑存在设计缺口
+
+**来源**: 死代码检测
+**问题**: 以下表格总结了四种情况的实际状态：
+
+| 功能 | 设计意图 | 实际状态 | 需要修复 |
+|------|---------|---------|---------|
+| Embedding（上传时） | 支持本地/远程 | 只用本地模型 | 是（如需支持远程） |
+| Embedding（检索时） | 支持本地/远程 | 只用本地模型 | 是（如需支持远程） |
+| Re-ranker（有远程 API） | 调用远程 API | ✅ 正常工作 | 否 |
+| Re-ranker（无远程 API） | 使用本地算法 | ❌ 跳过 | 是（Bug） |
+
+**处置判断**: 需调查后决定 — 涉及多个死代码模块，处理方式不同
+
+**证据**:
+- 配置未生效：`AgentClient.ts:157-165` 读取 embedding provider 配置，但 `retriever.ts:79` 的 `_embedConfig` 参数未使用
+- 本地实现被绕过：`reranker.ts:46-93` 实现了本地重排序，但 `knowledge.ts:665` 直接跳过
+- 死代码：`hybridSearch.ts`、`embedder.ts` 远程部分从未被调用
+
+**各模块处置分析**:
+- `reranker.ts`（本地重排序）：**集成被调用** — 实现完整，应接入检索流程
+- `hybridSearch.ts`（混合检索）：**移植后被调用** — 客户端逻辑应移植到服务端
+- `embedder.ts` 远程部分：**需确认** — 如果支持远程 embedding 则集成，否则清理
+
+**改动范围**:
+- `server/src/routes/knowledge.ts`: 如果无远程 reranker 配置，使用本地 reranker 逻辑
+- `server/src/routes/knowledge.ts`: 如果配置了远程 embedding，使用远程 API
+- 或删除 UI 中的 embedding provider 配置（如果不打算支持远程）
+
+**验证方式**:
+1. 未配置远程 reranker 时，确认检索结果经过本地重排序
+2. 配置远程 embedding 后，确认上传/检索使用远程 API
 ```
 
 ---
@@ -509,6 +642,7 @@ grep -rn "ERROR\|FATAL\|PANIC\|Exception\|Traceback" --include="*.log" . | head 
 | 测试盲区 | `[TestGap]` | 测试覆盖不足的区域 |
 | 代码异味 | `[CodeSmell]` | 可能导致未来 bug 的代码模式 |
 | 高风险 | `[Risk]` | 基于 commit 历史的高风险区域 |
+| 死代码 | `[DeadCode]` | 代码存在但从未被调用或已被替代（包括 AI 写了但未集成的代码） |
 
 #### 优先级定义
 
@@ -578,7 +712,7 @@ fi
 📊 扫描摘要：
 - Commit 历史分析：发现 N 个 bug 模式，M 个高风险文件
 - 静态检查：X errors, Y warnings
-- 死 Feature 检测：D 个死代码/F 个未接入 feature
+- 死代码检测：D 个死代码模块/F 个未接入功能
 - 测试覆盖：Z% 覆盖率，K 个盲区
 - 动态运行：P 个运行时问题
 
@@ -586,7 +720,7 @@ fi
 1. [PATTERN-1] 空值/undefined 未检查 — 出现 5 次
 2. [PATTERN-2] 数组越界/空数组 — 出现 3 次
 3. ...
-N. [DEAD-FEATURE] 死代码/未接入 feature — D 处（应清理 / 应接入）
+N. [DEAD-CODE] 死代码 — D 处（需调查后决定处理方式）
 
 📝 写入 backlog.md — 共 Q 条新 feature：
 - P0: A 条（关键）
@@ -608,3 +742,8 @@ Feature ID 列表：[BUG-001, BUG-002, ..., BUG-XXX]
 - **动态运行检查是可选的**，如果项目无法启动（如缺少依赖），跳过此步骤并在报告中说明
 - **Commit 历史分析是核心差异化**，务必深入分析，不要浅尝辄止
 - **每个 backlog 条目必须有具体的文件引用和改动范围**，不能泛泛而谈
+- **死代码处理不能一刀切** — 发现死代码后，必须仔细调查其存在原因，再决定处理方式：
+  - **清理删除**：代码已被替代、功能已废弃、或从未完成的设计残留
+  - **集成被调用**：代码实现完整且有价值，但调用链断裂（如 AI 写了但没接入）
+  - **移植后被调用**：代码在错误的位置（如客户端逻辑应在服务端），需要移植到正确位置再接入
+  - **保留待定**：代码是预留设计或实验性功能，暂时保留但标记为待决定
