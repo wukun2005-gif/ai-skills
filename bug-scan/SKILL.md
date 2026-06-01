@@ -83,6 +83,21 @@ git show <hash>
 | PATTERN-2 | 数组越界/空数组 | 3 | def456 | src/parser.js |
 | PATTERN-3 | 异步竞态条件 | 2 | ghi789 | src/api.js |
 
+**参考基准：高频 Bug 模式（从大量项目提炼）**
+
+以下是跨项目反复出现的高频模式，可作为归类参考。如果项目 commit 命中这些模式，优先标记：
+
+| 模式 | 典型表现 | 检查命令 |
+|------|---------|---------|
+| **持久化缺失** | store 更新只改内存，刷新后数据丢失 | `grep -rn "set\|update" --include="*Slice.ts" .` 检查是否有 IDB 写入 |
+| **JSON 解析无防护** | JSON.parse 无 try-catch，外部数据损坏时白屏 | `grep -rn "JSON.parse" --include="*.ts" --include="*.tsx" .` |
+| **组件卸载后 setState** | 用户导航离开后异步操作继续执行 | `grep -rn "setState\|set[A-Z]" --include="*.tsx" .` 检查是否有 isMountedRef |
+| **null/undefined 防护缺失** | 访问嵌套属性崩溃 | `grep -rn "\!\." --include="*.ts" --include="*.tsx" .` 扫描非空断言 |
+| **死代码** | 写了函数/组件/配置但从未被调用 | 见 §2.4 死代码专项检测 |
+| **console.log 残留** | 生产环境泄露调试信息 | `grep -rn "console\." --include="*.ts" --include="*.tsx" .` |
+| **React Key 不稳定** | key 用 index 或可编辑字段，导致重挂载 | `grep -rn "key={i}" --include="*.tsx" .` |
+| **useEffect 依赖不稳定** | 每次渲染创建新引用，导致无限循环 | 检查 useEffect 依赖数组中是否有 `.filter()`、`.map()` 等 |
+
 #### 1.4 标记高风险文件
 
 **高风险文件** = 被多次 bug-fix 的文件。这些文件很可能还有未发现的 bug。
@@ -152,6 +167,49 @@ grep -rn "console\.log\|console\.error\|console\.warn" --include="*.{js,ts,jsx,t
 #### 2.4 死 Feature / 死代码检测
 
 **找出"写了但没人用"的 feature：代码实现了功能，但从未被调用、未接入入口、或已被替代代码绕过，对用户零价值。**
+
+##### 调用方三问（快速检查入口）
+
+**根因**：从"实现方"出发写代码，会导致写了函数没人调、写了配置没被读、迁移了新端没清理旧端。
+
+在执行详细的死代码检测前，先用三个问题快速定位问题区域：
+
+| 问题 | 检查方法 | 典型问题 |
+|------|---------|---------|
+| **1. 这个代码谁调用？** | `grep -r "函数名/组件名" --include="*.ts" --include="*.tsx"` | 函数/组件/export 写了但无调用方 |
+| **2. 调用链路完整吗？** | 从 UI → API → 逻辑端到端 trace | 配置 UI 写了但配置没被读取、参数传递断裂 |
+| **3. 旧代码还有谁在用？** | `grep -r "旧函数名"` 确认无调用方后删除 | 迁移后旧代码残留、替代实现并存 |
+
+**快速扫描命令**：
+
+```bash
+# 问题 1：找 export 但未被 import 的符号
+# 提取所有 export，检查是否被其他文件 import
+grep -rn "^export \(function\|const\|class\|interface\|type\)" --include="*.ts" --include="*.tsx" . \
+  | grep -v node_modules | grep -v "\.d\.ts" | grep -v "\.test\." | grep -v "\.spec\." \
+  | while IFS=: read file line content; do
+    symbol=$(echo "$content" | sed -n 's/.*export \(function\|const\|class\) \+\([a-zA-Z_][a-zA-Z0-9_]*\).*/\2/p')
+    if [ -n "$symbol" ]; then
+      count=$(grep -r "$symbol" --include="*.ts" --include="*.tsx" . | grep -v node_modules | grep -v "$file" | grep -v "\.d\.ts" | wc -l)
+      if [ "$count" -eq 0 ]; then
+        echo "DEAD_EXPORT: $file:$line — $symbol (0 imports)"
+      fi
+    fi
+  done
+
+# 问题 2：找配置读取但未传递的模式
+grep -rn "settings\.\|config\.\|readSettings" --include="*.ts" --include="*.tsx" . | grep -v node_modules | head -30
+
+# 问题 3：找迁移后残留的旧代码
+# 如果有 MIGRATE 类型的 commit，检查旧模块是否还有调用
+git log --oneline | grep -i "migrate\|迁移" | head -10
+```
+
+**判定标准**：
+- 函数/组件 0 个调用方 → **死代码**，P1
+- 配置读取后未传递给执行函数 → **配置未生效**，P0
+- 迁移后旧模块仍有调用 → **需确认是双路径还是遗漏**，P1
+- 迁移后旧模块无调用但未删除 → **死代码应清理**，P2
 
 ##### 2.4.1 扫描入口点，建立调用图
 
