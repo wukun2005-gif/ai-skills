@@ -74,7 +74,7 @@ bug-scan 完成后，从其输出报告中提取 **本轮新写入** 的 bug ID 
 Feature ID 列表：[BUG-001, BUG-002, ..., BUG-XXX]
 ```
 
-**关键：只取本轮新写入的 ID，不处理 backlog 中已有的旧 bug。**
+**关键：不仅取本轮新写入的 ID，也要处理 backlog 中其他的还没有fix的旧 bug。**
 
 判断方法：
 1. bug-scan 执行前，记录 backlog.md 中已有的 `BUG-XXX` 编号最大值（如 `prev_max = BUG-015`）
@@ -89,9 +89,9 @@ grep -oP 'BUG-\d+' backlog.md | sort -t'-' -k2 -n | tail -1
 grep -oP 'BUG-\d+' backlog.md | sort -t'-' -k2 -n | awk -F'-' -v max="$prev_max" '$2 > max'
 ```
 
-#### 2.3 无新 Bug → 结束
+#### 2.3 无 Bug → 结束
 
-如果本轮 bug-scan 未发现任何新 bug：
+如果本轮 bug-scan 未发现任何新 bug，而且backlog.md 中也没有未修复的 bug：
 
 ```
 ✅ Fix-Loop 完成 — 项目已干净
@@ -99,22 +99,22 @@ grep -oP 'BUG-\d+' backlog.md | sort -t'-' -k2 -n | awk -F'-' -v max="$prev_max"
 📊 循环摘要：
 - 总轮次：N 轮
 - 总修复 bug 数：M 个
-- 最终状态：无新 bug 发现
+- 最终状态：无 bug 需要fix
 
 🎉 项目通过全量 bug 扫描，无需进一步修复。
 ```
 
 **结束整个 skill，不再进入 Task B。**
 
-#### 2.4 有新 Bug → 进入 Task B
+#### 2.4 有 Bug → 进入 Task B
 
-如果发现新 bug，输出本轮摘要后进入 Task B：
+如果发现任何 没有fix的bug，输出本轮摘要后进入 Task B：
 
 ```
 🔄 Fix-Loop 第 N 轮 — Task A 完成
 
 📊 本轮扫描结果：
-- 新发现 bug：K 个（P0: X, P1: Y, P2: Z）
+- 未修复 bug：K 个（P0: X, P1: Y, P2: Z）
 - Bug ID：[BUG-016, BUG-017, ..., BUG-025]
 
 ⏳ 进入 Task B：修复以上 K 个 bug...
@@ -183,7 +183,7 @@ dev-iterate 完成后，记录本轮修复的 bug 数量。
 🔄 Fix-Loop 第 N 轮完成
 
 Task A（扫描）：
-- 新发现 bug：K 个
+- 未修复 bug：K 个
 - Bug ID：[BUG-XXX, ...]
 
 Task B（修复）：
@@ -204,10 +204,10 @@ Task B（修复）：
 - 总扫描 bug 数：T 个
 - 总修复 bug 数：M 个
 - 跳过/误报：S 个
-- 最终状态：无新 bug 发现
+- 最终状态：无 bug 需要fix
 
 📝 每轮详情：
-| 轮次 | 新发现 | 修复 | 跳过 | 状态 |
+| 轮次 | 未修复 | 修复 | 跳过 | 状态 |
 |------|--------|------|------|------|
 | 1    | 12     | 10   | 2    | ✅   |
 | 2    | 3      | 3    | 0    | ✅   |
