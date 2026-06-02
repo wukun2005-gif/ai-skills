@@ -255,12 +255,20 @@ grep -rn "console\.log\|console\.error\|console\.warn" --include="*.{js,ts,jsx,t
 
 **扫描完成后，必须为以下模式生成 backlog 条目（如果发现了问题）：**
 
-| 模式 | Backlog 格式 | 优先级 |
-|------|-------------|--------|
-| 空 catch 块 > 5 处 | `[CodeSmell] 空 catch 块批量修复 — 静默吞掉错误导致问题难以排查` | P1 |
-| console.log 遗留 > 0 处 | `[CodeSmell] 生产代码中遗留 console.log — 可能泄露调试信息` | P2 |
-| TODO/FIXME > 10 处 | `[CodeSmell] 积压的 TODO/FIXME — 技术债务清单` | P2 |
-| 硬编码魔法数字 > 10 处 | `[CodeSmell] 硬编码魔法数字 — 可读性差，应提取为常量` | P3 |
+**⚠️ 强制执行规则：这些不是"建议"，是"必须"。扫描完每个模式后，立即检查是否命中阈值，命中则立即写入 backlog。不允许跳过、不允许"下次再写"、不允许只在报告中提一句数字。**
+
+| 模式 | 阈值 | 强制动作 | 优先级 |
+|------|------|---------|--------|
+| 空 catch 块 | **≥ 1 处** | **必须**生成 `[CodeSmell]` backlog 条目，列出每个空 catch 块的文件:行号。≤5 处逐个列出，>5 处汇总 + 列出前 10 个 | P1 |
+| console.log 遗留 | > 0 处 | **必须**生成 `[CodeSmell]` backlog 条目 | P2 |
+| TODO/FIXME | > 10 处 | **必须**生成 `[CodeSmell]` backlog 条目 | P2 |
+| 硬编码魔法数字 | > 10 处 | **必须**生成 `[CodeSmell]` backlog 条目 | P3 |
+
+**自检清单**（扫描完成后逐项确认，缺一不可）：
+- [ ] 空 catch 块：已计数 ___ 处，已写入 backlog：是/否
+- [ ] console.log：已计数 ___ 处，已写入 backlog：是/否
+- [ ] TODO/FIXME：已计数 ___ 处，已写入 backlog：是/否
+- [ ] 硬编码魔法数字：已计数 ___ 处，已写入 backlog：是/否
 
 #### 2.4 死 Feature / 死代码检测
 
@@ -767,12 +775,51 @@ find . -type f \( -name "*e2e*" -o -name "*smoke*" -o -name "*playwright*" -o -n
 
 | 检查项 | 方法 | 风险 |
 |--------|------|------|
-| **Mock 过度** | grep mock/stub/fake 的使用，检查是否 mock 了被测系统的核心逻辑 | 测试通过但实际功能 broken |
+| **Mock 绕过真实数据流** | 见 Step 3.1 深度 mock 分析 | 测试通过但实际功能 broken |
 | **测试数据过期** | 检查 fixture 文件的最后修改时间 vs 源码最后修改时间 | fixture 数据不再匹配当前 schema |
 | **测试跳过/禁用** | grep `skip`/`xit`/`xdescribe`/`pending`/`@disabled`/`test.skip` | 跳过的测试可能掩盖真实问题 |
 | **断言缺失** | 检查测试中是否有 `expect`/`assert`/`should` 调用 | 没有断言的测试永远通过 |
 | **测试隔离性** | 检查测试之间是否共享可变状态（全局变量、共享 DB、环境变量） | 测试顺序影响结果 |
 | **快照测试腐化** | 如果有 snapshot 测试，检查 snapshot 文件是否被盲目更新 | snapshot 更新掩盖了回归 |
+
+**Step 3.1：深度 Mock 分析（不能只数 mock 数量）**
+
+**核心问题：mock 是否绕过了被测系统的真实数据流？** 如果测试 mock 了数据访问层（如数据库、API client、store），那么即使测试通过，真实的数据流可能完全 broken。
+
+```bash
+# Step 3.1.1：找到所有 mock 的目标
+# 列出每个测试文件 mock 了什么模块/函数
+grep -rn "vi\.mock\|jest\.mock\|vi\.spyOn\|jest\.spyOn\|mock(" \
+  --include="*.test.*" --include="*.spec.*" . | grep -v node_modules
+
+# Step 3.1.2：对每个 mock 目标，判断它是否是"核心数据流"的一部分
+# 核心数据流 = 数据从用户操作 → 业务逻辑 → 持久化/渲染 的完整路径
+# 如果 mock 的是这个路径上的节点 → 该测试没有验证真实数据流
+
+# 常见的"危险 mock"（mock 了核心数据流）：
+# - mock 数据库/API 层 → 数据是否真的被保存/读取？
+# - mock store/state → 状态是否真的被更新？
+# - mock 路由/导航 → 页面是否真的跳转？
+# - mock 文件系统 → 文件是否真的被读写？
+
+# Step 3.1.3：检查 mock 是否覆盖了真实行为
+# 对每个 mock，检查 mock 的返回值是否与真实模块的行为一致
+# 如果 mock 返回硬编码值，但真实模块有复杂的条件逻辑 → mock 可能掩盖 bug
+```
+
+**判定规则：**
+
+| 情况 | 判定 | 处理 |
+|------|------|------|
+| Mock 了外部 API（第三方服务） | **合理** — 不可控依赖应该 mock | 无需处理 |
+| Mock 了项目自身的数据访问层 | **危险** — 可能绕过真实数据流 | 必须在 backlog 中标记，P1 |
+| Mock 返回硬编码值，真实模块有分支逻辑 | **不可信** — mock 没有覆盖真实行为 | 必须在 backlog 中标记，P1 |
+| Mock 了被测函数的直接依赖 | **过度 mock** — 被测函数的行为被隔离 | 必须在 backlog 中标记，P1 |
+
+**自检清单：**
+- [ ] 列出了所有 mock 目标：___ 个
+- [ ] 其中 mock 了项目自身数据访问层：___ 个 → 需要标记
+- [ ] 其中 mock 返回值与真实行为不一致：___ 个 → 需要标记
 
 **Step 4：检查测试配置的合理性**
 
@@ -829,9 +876,49 @@ find . -type d \( -name "prompts" -o -name "templates" -o -name "system" \) \
 | **变量未替换** | 检查模板中的 `{{var}}`、`{var}`、`${var}`、`%s` 占位符，确认调用方是否全部替换 | 用户看到原始占位符 |
 | **Prompt 注入风险** | 检查 prompt 是否包含用户可控输入（如文件名、用户消息、搜索 query），且未做转义/隔离 | 恶意输入覆盖系统指令 |
 | **与 Schema 不匹配** | prompt 要求 AI 输出 JSON，但 schema 定义的字段名/类型与 prompt 不一致 | AI 输出被 schema 拒绝，解析失败 |
-| **指令矛盾** | 同一个调用链中多个 prompt 的指令相互矛盾（如一个说"简洁"另一个说"详细"） | AI 行为不稳定 |
+| **指令矛盾** | 见 Step 2.1 跨 prompt 一致性检查 | AI 行为不稳定 |
 | **硬编码的模型特定指令** | prompt 中包含特定模型的指令（如"GPT-4"、"Claude"），但项目支持多模型 | 切换模型后行为异常 |
 | **Prompt 版本漂移** | prompt 文件有多份副本（如 `prompts/v1/` 和 `prompts/v2/`），只有一份被使用 | 旧版本 prompt 是死代码 |
+
+**Step 2.1：跨 Prompt 指令一致性检查（不能只查单个 prompt）**
+
+**核心问题：多个 prompt 对同一字段/行为的要求是否一致？** 项目中通常有多个 prompt 模板（如分析 prompt、摘要 prompt、输出格式 prompt），如果它们对同一字段的描述矛盾，AI 输出会不稳定。
+
+```bash
+# Step 2.1.1：提取所有 prompt 中的字段名/输出格式要求
+# 找到所有 prompt 文件
+find . -path "*/prompts/*" \( -name "*.md" -o -name "*.txt" \) ! -path "*/node_modules/*"
+# 也找内嵌在代码中的 prompt
+grep -rn "systemPrompt\|SYSTEM_PROMPT" --include="*.ts" --include="*.js" . | grep -v node_modules
+
+# Step 2.1.2：对每个 prompt，提取它要求 AI 输出的字段名
+# 例：如果 prompt 说 "输出 JSON，包含 fields: {title, summary, analysis}"
+# 则提取 [title, summary, analysis]
+
+# Step 2.1.3：跨 prompt 对比同一字段的描述
+# 如果 prompt A 说 "title: 简短标题（10字以内）"
+# 而 prompt B 说 "title: 详细标题（包含技术方案）"
+# → 矛盾
+
+# Step 2.1.4：检查 prompt 与 schema 的字段名是否匹配
+# 提取 schema 中的字段名，与 prompt 中要求的字段名对比
+# 不匹配 → AI 输出被 schema 拒绝
+```
+
+**具体检查清单：**
+
+| 检查项 | 方法 | 典型问题 |
+|--------|------|---------|
+| **同一字段名，不同描述** | 对比所有 prompt 中出现的相同字段名，检查描述是否一致 | prompt A 说"简洁"，prompt B 说"详细" |
+| **同一字段名，不同类型要求** | 检查 prompt 要求的类型（string/array/object）是否与 schema 一致 | prompt 说"返回数组"，schema 定义为 string |
+| **Prompt 要求的字段 vs Schema 定义的字段** | 提取 prompt 中要求 AI 输出的所有字段名，与 schema 的字段名对比 | prompt 要求输出 X，但 schema 没有 X |
+| **格式要求矛盾** | 一个 prompt 说"输出 JSON"，另一个说"输出 Markdown" | AI 输出格式不确定 |
+| **语气/风格矛盾** | 一个 prompt 说"正式学术风格"，另一个说"通俗易懂" | AI 输出风格不一致 |
+
+**判定标准：**
+- 多个 prompt 对同一字段的要求不一致 → **指令矛盾**，P1
+- Prompt 要求输出的字段在 schema 中不存在 → **Schema 不匹配**，P0
+- Prompt 要求的格式与代码解析逻辑不一致 → **解析失败**，P0
 
 **Step 3：检查 prompt 与代码的调用链**
 
