@@ -53,6 +53,8 @@ while round <= max_rounds:
                         回到 Task A
 ```
 
+> **⚠ 关键原则：每轮修复后必须重新扫描，不能仅凭 backlog 清空就判定完成 — 修复本身可能引入新 bug。只有下一轮 bug-scan 确认无新发现，循环才能结束。**
+
 ---
 
 ### 2. Task A：Bug 扫描（调用 /bug-scan）
