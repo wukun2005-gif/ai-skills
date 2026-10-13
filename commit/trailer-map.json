@@ -57,6 +57,34 @@
     "deepseek-v4-flash-free": {
       "name": "DeepSeek-V4-Flash-Free",
       "email": "noreply@deepseek.com"
+    },
+    "glm-5.3-flash": {
+      "name": "GLM-5.3-Flash",
+      "email": "noreply@z.ai"
+    },
+    "mimo-v2.5-free": {
+      "name": "MiMo-V2.5-Free",
+      "email": "support-mimo@xiaomi.com"
+    },
+    "mimo-v2.5-flash-free": {
+      "name": "MiMo-V2.6-Flash-Free",
+      "email": "support-mimo@xiaomi.com"
+    },
+    "mimo-v2.6-flash-free": {
+      "name": "MiMo-V2.6-Flash-Free",
+      "email": "support-mimo@xiaomi.com"
+    },
+    "gemini-3-flash": {
+      "name": "Gemini 3 Flash",
+      "email": "noreply@google.com"
+    },
+    "step-5-preview": {
+      "name": "Step 5 Preview",
+      "email": "noreply@stepfun.com"
+    },
+    "space-bunny-free": {
+      "name": "Space Bunny Free",
+      "email": "noreply@opencode.ai"
     }
   }
 }

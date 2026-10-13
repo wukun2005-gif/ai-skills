@@ -105,6 +105,17 @@
       "method": "symlink",
       "note": "Hermes Agent"
     },
+    "antigravity-ide": {
+      "detect_path": "~/.gemini/antigravity-ide/",
+      "skills_dir": "~/.gemini/antigravity-ide/global_workflows/",
+      "format": "markdown-workflow",
+      "method": "copy",
+      "limits": {
+        "description_max_chars": 250,
+        "body_max_chars": 12000
+      },
+      "note": "Gemini Antigravity IDE 独立安装目录"
+    },
     "antigravity-local": {
       "detect_path": "~/.antigravity/",
       "skills_dir": "~/.antigravity/extensions/",
@@ -181,6 +192,13 @@
       "format": "agent-skills",
       "method": "none",
       "note": "No standard skills directory found"
+    },
+    "mimocode": {
+      "detect_path": "~/.config/mimocode/",
+      "skills_dir": "~/.config/mimocode/skills/",
+      "format": "agent-skills",
+      "method": "symlink",
+      "note": "MiMo Code (Xiaomi)，参见 https://mimo.xiaomi.com/zh/mimocode/skills"
     }
   }
 }
